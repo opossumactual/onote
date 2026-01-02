@@ -7,16 +7,22 @@
   import StatusBar from "./lib/components/StatusBar.svelte";
   import KeyboardShortcuts from "./lib/components/KeyboardShortcuts.svelte";
   import Settings from "./lib/components/Settings.svelte";
+  import LockScreen from "./lib/components/LockScreen.svelte";
+  import SetupWizard from "./lib/components/SetupWizard.svelte";
   import { uiStore } from "./lib/stores/ui.svelte";
   import { notesStore } from "./lib/stores/notes.svelte";
   import { editorStore } from "./lib/stores/editor.svelte";
   import { recordingStore } from "./lib/stores/recording.svelte";
   import { themeStore } from "./lib/stores/theme.svelte";
+  import { vaultStore } from "./lib/stores/vault.svelte";
 
   let showShortcuts = $state(false);
+  let vaultReady = $state(false);
 
-  onMount(() => {
+  onMount(async () => {
     themeStore.init();
+    await vaultStore.checkStatus();
+    vaultReady = true;
   });
 
   function handleKeydown(event: KeyboardEvent) {
@@ -115,30 +121,65 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="app">
-  <Toolbar onshowshortcuts={() => (showShortcuts = true)} />
+{#if !vaultReady}
+  <!-- Loading state while checking vault -->
+  <div class="loading">
+    <div class="spinner"></div>
+  </div>
+{:else if !vaultStore.status.initialized}
+  <!-- First run - show setup wizard -->
+  <SetupWizard />
+{:else if vaultStore.status.locked}
+  <!-- Vault locked - show lock screen -->
+  <LockScreen />
+{:else}
+  <!-- Vault unlocked - show main app -->
+  <div class="app">
+    <Toolbar onshowshortcuts={() => (showShortcuts = true)} />
 
-  <div class="main">
-    <aside class="sidebar" class:collapsed={!uiStore.sidebarVisible}>
-      <Sidebar />
-    </aside>
+    <div class="main">
+      <aside class="sidebar" class:collapsed={!uiStore.sidebarVisible}>
+        <Sidebar />
+      </aside>
 
-    <section class="note-list" class:collapsed={!uiStore.noteListVisible}>
-      <NoteList />
-    </section>
+      <section class="note-list" class:collapsed={!uiStore.noteListVisible}>
+        <NoteList />
+      </section>
 
-    <main class="editor">
-      <Editor />
-    </main>
+      <main class="editor">
+        <Editor />
+      </main>
+    </div>
+
+    <StatusBar />
   </div>
 
-  <StatusBar />
-</div>
-
-<KeyboardShortcuts visible={showShortcuts} onclose={() => (showShortcuts = false)} />
-<Settings visible={uiStore.settingsOpen} onclose={() => uiStore.closeSettings()} />
+  <KeyboardShortcuts visible={showShortcuts} onclose={() => (showShortcuts = false)} />
+  <Settings visible={uiStore.settingsOpen} onclose={() => uiStore.closeSettings()} />
+{/if}
 
 <style>
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: var(--bg-primary);
+  }
+
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
   .app {
     display: flex;
     flex-direction: column;
