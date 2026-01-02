@@ -56,6 +56,7 @@ pub fn run() {
             commands::notes::delete_note,
             commands::notes::create_folder,
             commands::notes::delete_folder,
+            commands::notes::rename_folder,
             commands::notes::search_notes,
             // Settings
             commands::settings::get_settings,

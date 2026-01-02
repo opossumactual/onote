@@ -102,6 +102,10 @@ export async function deleteFolder(path: string): Promise<void> {
   return invoke("delete_folder", { path });
 }
 
+export async function renameFolder(oldPath: string, newName: string): Promise<string> {
+  return invoke<string>("rename_folder", { oldPath, newName });
+}
+
 // Settings commands
 export async function getSettings(): Promise<AppSettings> {
   return invoke<AppSettings>("get_settings");

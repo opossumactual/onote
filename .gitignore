@@ -23,3 +23,13 @@ npm-debug.log*
 
 # Tauri
 src-tauri/gen/
+
+# Claude Code / Development notes
+CLAUDE.md
+CLAUDE_CODE_PROMPT*.md
+SKILL-*.md
+.claude/
+docs/plans/
+
+# Design prototypes
+design-*.html

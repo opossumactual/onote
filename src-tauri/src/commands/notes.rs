@@ -246,16 +246,30 @@ pub fn delete_folder(path: String, state: State<AppState>) -> Result<(), String>
     let notes_dir = state.notes_dir.lock().unwrap().clone();
     let full_path = notes_dir.join(&path);
 
-    // Only delete if empty or user confirms (for now, only delete empty)
-    let is_empty = fs::read_dir(&full_path)
-        .map(|mut entries| entries.next().is_none())
-        .unwrap_or(false);
+    // Recursively delete folder and all contents
+    fs::remove_dir_all(&full_path).map_err(|e| e.to_string())
+}
 
-    if !is_empty {
-        return Err("Folder is not empty. Delete all notes first.".to_string());
+#[tauri::command]
+pub fn rename_folder(old_path: String, new_name: String, state: State<AppState>) -> Result<String, String> {
+    let notes_dir = state.notes_dir.lock().unwrap().clone();
+    let old_full_path = notes_dir.join(&old_path);
+
+    // Get parent directory
+    let parent = old_full_path.parent()
+        .ok_or_else(|| "Invalid folder path".to_string())?;
+
+    let new_full_path = parent.join(&new_name);
+
+    // Check if target already exists
+    if new_full_path.exists() {
+        return Err(format!("A folder named '{}' already exists", new_name));
     }
 
-    fs::remove_dir(full_path).map_err(|e| e.to_string())
+    fs::rename(&old_full_path, &new_full_path).map_err(|e| e.to_string())?;
+
+    let rel_path = new_full_path.strip_prefix(&notes_dir).unwrap_or(&new_full_path);
+    Ok(rel_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]

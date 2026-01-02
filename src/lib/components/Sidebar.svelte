@@ -1,6 +1,6 @@
 <script lang="ts">
   import { notesStore } from "../stores/notes.svelte";
-  import { searchNotes, type SearchResult } from "../utils/tauri-commands";
+  import { searchNotes, renameFolder, type SearchResult } from "../utils/tauri-commands";
 
   let searchQuery = $state("");
   let searchResults = $state<SearchResult[]>([]);
@@ -8,6 +8,8 @@
   let searchTimeout: ReturnType<typeof setTimeout>;
   let showNewFolder = $state(false);
   let newFolderName = $state("");
+  let renamingFolder = $state<string | null>(null);
+  let renameValue = $state("");
 
   function handleSearch() {
     clearTimeout(searchTimeout);
@@ -55,6 +57,49 @@
     } else if (event.key === "Escape") {
       showNewFolder = false;
       newFolderName = "";
+    }
+  }
+
+  async function handleDeleteFolder(event: MouseEvent, path: string, name: string) {
+    event.stopPropagation();
+    if (confirm(`Delete folder "${name}" and all its notes?`)) {
+      try {
+        await notesStore.removeFolder(path);
+      } catch (error) {
+        alert(`Failed to delete folder: ${error}`);
+      }
+    }
+  }
+
+  function startRename(event: MouseEvent, path: string, name: string) {
+    event.stopPropagation();
+    renamingFolder = path;
+    renameValue = name;
+  }
+
+  async function handleRename(oldPath: string) {
+    if (!renameValue.trim() || renameValue === renamingFolder) {
+      renamingFolder = null;
+      return;
+    }
+    try {
+      const newPath = await renameFolder(oldPath, renameValue.trim());
+      await notesStore.loadFolders();
+      // If we renamed the selected folder, update selection
+      if (notesStore.selectedFolder === oldPath) {
+        notesStore.selectFolder(newPath);
+      }
+    } catch (error) {
+      alert(`Failed to rename folder: ${error}`);
+    }
+    renamingFolder = null;
+  }
+
+  function handleRenameKeydown(event: KeyboardEvent, path: string) {
+    if (event.key === "Enter") {
+      handleRename(path);
+    } else if (event.key === "Escape") {
+      renamingFolder = null;
     }
   }
 </script>
@@ -109,34 +154,111 @@
           bind:value={newFolderName}
           onkeydown={handleFolderKeydown}
         />
-        <button class="create-btn" onclick={handleCreateFolder}>Create</button>
+        <button class="icon-btn" onclick={handleCreateFolder} title="Create">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+        </button>
+        <button class="icon-btn cancel-btn" onclick={() => { showNewFolder = false; newFolderName = ""; }} title="Cancel">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     {/if}
 
     <nav class="folder-tree">
       {#each notesStore.folders as folder}
-        <button
+        <div
           class="folder-item"
           class:selected={notesStore.selectedFolder === folder.path}
-          onclick={() => selectFolder(folder.path)}
+          onclick={() => renamingFolder !== folder.path && selectFolder(folder.path)}
+          onkeydown={(e) => e.key === "Enter" && renamingFolder !== folder.path && selectFolder(folder.path)}
+          role="button"
+          tabindex="0"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
           </svg>
-          <span>{folder.name}</span>
-        </button>
+          {#if renamingFolder === folder.path}
+            <input
+              type="text"
+              class="rename-input"
+              bind:value={renameValue}
+              onkeydown={(e) => handleRenameKeydown(e, folder.path)}
+              onblur={() => handleRename(folder.path)}
+              onclick={(e) => e.stopPropagation()}
+            />
+          {:else}
+            <span>{folder.name}</span>
+          {/if}
+          <div class="folder-actions">
+            <button
+              class="folder-action-btn"
+              onclick={(e) => startRename(e, folder.path, folder.name)}
+              title="Rename folder"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 3a2.85 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5Z" />
+              </svg>
+            </button>
+            <button
+              class="folder-action-btn delete-btn"
+              onclick={(e) => handleDeleteFolder(e, folder.path, folder.name)}
+              title="Delete folder"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+              </svg>
+            </button>
+          </div>
+        </div>
 
         {#each folder.children as child}
-          <button
+          <div
             class="folder-item nested"
             class:selected={notesStore.selectedFolder === child.path}
-            onclick={() => selectFolder(child.path)}
+            onclick={() => renamingFolder !== child.path && selectFolder(child.path)}
+            onkeydown={(e) => e.key === "Enter" && renamingFolder !== child.path && selectFolder(child.path)}
+            role="button"
+            tabindex="0"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
             </svg>
-            <span>{child.name}</span>
-          </button>
+            {#if renamingFolder === child.path}
+              <input
+                type="text"
+                class="rename-input"
+                bind:value={renameValue}
+                onkeydown={(e) => handleRenameKeydown(e, child.path)}
+                onblur={() => handleRename(child.path)}
+                onclick={(e) => e.stopPropagation()}
+              />
+            {:else}
+              <span>{child.name}</span>
+            {/if}
+            <div class="folder-actions">
+              <button
+                class="folder-action-btn"
+                onclick={(e) => startRename(e, child.path, child.name)}
+                title="Rename folder"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17 3a2.85 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5Z" />
+                </svg>
+              </button>
+              <button
+                class="folder-action-btn delete-btn"
+                onclick={(e) => handleDeleteFolder(e, child.path, child.name)}
+                title="Delete folder"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                </svg>
+              </button>
+            </div>
+          </div>
         {/each}
       {/each}
     </nav>
@@ -255,6 +377,7 @@
 
   .new-folder-input {
     display: flex;
+    align-items: center;
     gap: var(--space-xs);
     padding: 0 var(--space-sm);
     margin-bottom: var(--space-sm);
@@ -262,6 +385,7 @@
 
   .new-folder-input input {
     flex: 1;
+    min-width: 0;
     padding: var(--space-xs) var(--space-sm);
     background: var(--surface-0);
     border: 1px solid var(--border-default);
@@ -275,17 +399,25 @@
     border-color: var(--accent);
   }
 
-  .create-btn {
-    padding: var(--space-xs) var(--space-sm);
-    background: var(--accent);
-    color: white;
+  .icon-btn {
+    flex-shrink: 0;
+    padding: var(--space-xs);
     border-radius: 4px;
-    font-size: var(--font-size-xs);
-    transition: background var(--transition-fast);
+    color: var(--accent);
+    transition: all var(--transition-fast);
   }
 
-  .create-btn:hover {
-    background: var(--accent-hover);
+  .icon-btn:hover {
+    background: var(--accent-dim);
+  }
+
+  .icon-btn.cancel-btn {
+    color: var(--text-disabled);
+  }
+
+  .icon-btn.cancel-btn:hover {
+    background: var(--surface-3);
+    color: var(--text-primary);
   }
 
   .folder-tree {
@@ -333,5 +465,49 @@
 
   .folder-item.selected svg {
     opacity: 1;
+  }
+
+  .folder-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+  }
+
+  .folder-item:hover .folder-actions {
+    opacity: 1;
+  }
+
+  .folder-action-btn {
+    padding: var(--space-xs);
+    border-radius: 4px;
+    color: var(--text-disabled);
+    transition: all var(--transition-fast);
+  }
+
+  .folder-action-btn:hover {
+    background: var(--surface-3);
+    color: var(--text-primary);
+  }
+
+  .folder-action-btn.delete-btn:hover {
+    background: var(--error-dim);
+    color: var(--error);
+  }
+
+  .rename-input {
+    flex: 1;
+    min-width: 0;
+    padding: 2px var(--space-xs);
+    background: var(--surface-0);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+  }
+
+  .rename-input:focus {
+    outline: none;
   }
 </style>
