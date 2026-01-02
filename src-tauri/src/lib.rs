@@ -5,7 +5,8 @@ use commands::vault::{VaultConfig, VaultState};
 use ringbuf::HeapCons;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::Manager;
+use std::time::Duration;
+use tauri::{Emitter, Manager};
 
 pub struct AppState {
     pub notes_dir: Mutex<PathBuf>,
@@ -50,6 +51,23 @@ pub fn run() {
             // Initialize vault config
             let vault_state = app.state::<VaultState>();
             vault_state.set_config(VaultConfig::new(&notes_dir));
+
+            // Start auto-lock timer
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(Duration::from_secs(1));
+
+                    // Get vault state from app handle
+                    if let Some(vault) = app_handle.try_state::<VaultState>() {
+                        if vault.should_lock() {
+                            vault.lock();
+                            // Emit event to frontend
+                            app_handle.emit("vault-locked", ()).ok();
+                        }
+                    }
+                }
+            });
 
             Ok(())
         })
