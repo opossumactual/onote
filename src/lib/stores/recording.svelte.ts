@@ -1,45 +1,87 @@
+import * as commands from "../utils/tauri-commands";
+
 // Recording State
 type RecordingStatus = "idle" | "recording" | "processing";
 
 let status = $state<RecordingStatus>("idle");
 let duration = $state(0);
+let error = $state<string | null>(null);
 
 let intervalId: ReturnType<typeof setInterval>;
 
 // Actions
-function startRecording() {
-  status = "recording";
-  duration = 0;
+async function startRecording() {
+  error = null;
 
-  // Start duration counter
-  intervalId = setInterval(() => {
-    duration++;
-  }, 1000);
+  try {
+    await commands.startRecording();
+    status = "recording";
+    duration = 0;
 
-  // TODO: invoke start_recording
-  console.log("Recording started");
+    // Start duration counter
+    intervalId = setInterval(() => {
+      duration++;
+    }, 1000);
+
+    console.log("Recording started");
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error("Failed to start recording:", error);
+    status = "idle";
+  }
 }
 
 async function stopRecording(): Promise<string | null> {
   clearInterval(intervalId);
-  status = "processing";
+  error = null;
 
-  // TODO: invoke stop_recording
-  console.log("Processing recording...");
+  try {
+    status = "processing";
+    console.log("Stopping recording...");
 
-  // Simulate transcription delay
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Stop recording and get the audio file path
+    const audioPath = await commands.stopRecording();
+    console.log("Audio saved to:", audioPath);
 
-  const transcription = "[Transcribed text would appear here]";
+    // Check if the model is downloaded
+    const modelId = await commands.getSelectedModel();
+    const modelStatus = await commands.getModelStatus(modelId);
 
-  status = "idle";
-  duration = 0;
+    if (!modelStatus.downloaded) {
+      error = `Model '${modelId}' not downloaded. Please download it in Settings first.`;
+      status = "idle";
+      duration = 0;
+      return null;
+    }
 
-  return transcription;
+    // Transcribe the audio
+    console.log("Transcribing with model:", modelId);
+    const transcription = await commands.transcribe(audioPath);
+    console.log("Transcription:", transcription);
+
+    status = "idle";
+    duration = 0;
+
+    return transcription;
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+    console.error("Failed to process recording:", error);
+    status = "idle";
+    duration = 0;
+    return null;
+  }
 }
 
-function cancelRecording() {
+async function cancelRecording() {
   clearInterval(intervalId);
+  error = null;
+
+  try {
+    await commands.cancelRecording();
+  } catch (e) {
+    console.error("Failed to cancel recording:", e);
+  }
+
   status = "idle";
   duration = 0;
 }
@@ -68,7 +110,13 @@ export const recordingStore = {
   get isProcessing() {
     return status === "processing";
   },
+  get error() {
+    return error;
+  },
   startRecording,
   stopRecording,
   cancelRecording,
+  clearError() {
+    error = null;
+  },
 };

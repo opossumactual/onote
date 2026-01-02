@@ -3,6 +3,8 @@ import {
   listNotes,
   createNote,
   deleteNote,
+  createFolder,
+  deleteFolder,
   type FolderInfo,
   type NoteMeta,
 } from "../utils/tauri-commands";
@@ -76,6 +78,31 @@ function selectFolder(path: string) {
   loadNotes(path);
 }
 
+async function addFolder(name: string, parent?: string) {
+  try {
+    const path = await createFolder(name, parent);
+    await loadFolders();
+    return path;
+  } catch (error) {
+    console.error("Failed to create folder:", error);
+    return null;
+  }
+}
+
+async function removeFolder(path: string) {
+  try {
+    await deleteFolder(path);
+    await loadFolders();
+    // If we deleted the selected folder, switch to inbox
+    if (selectedFolder === path) {
+      selectFolder("inbox");
+    }
+  } catch (error) {
+    console.error("Failed to delete folder:", error);
+    throw error; // Re-throw to show error to user
+  }
+}
+
 // Initialize
 loadFolders();
 loadNotes(selectedFolder);
@@ -103,4 +130,6 @@ export const notesStore = {
   removeNote,
   selectNote,
   selectFolder,
+  addFolder,
+  removeFolder,
 };

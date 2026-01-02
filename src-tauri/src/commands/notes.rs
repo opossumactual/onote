@@ -226,6 +226,39 @@ pub fn delete_note(path: String, state: State<AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn create_folder(name: String, parent: Option<String>, state: State<AppState>) -> Result<String, String> {
+    let notes_dir = state.notes_dir.lock().unwrap().clone();
+
+    let folder_path = if let Some(parent_path) = parent {
+        notes_dir.join(&parent_path).join(&name)
+    } else {
+        notes_dir.join(&name)
+    };
+
+    fs::create_dir_all(&folder_path).map_err(|e| e.to_string())?;
+
+    let rel_path = folder_path.strip_prefix(&notes_dir).unwrap_or(&folder_path);
+    Ok(rel_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn delete_folder(path: String, state: State<AppState>) -> Result<(), String> {
+    let notes_dir = state.notes_dir.lock().unwrap().clone();
+    let full_path = notes_dir.join(&path);
+
+    // Only delete if empty or user confirms (for now, only delete empty)
+    let is_empty = fs::read_dir(&full_path)
+        .map(|mut entries| entries.next().is_none())
+        .unwrap_or(false);
+
+    if !is_empty {
+        return Err("Folder is not empty. Delete all notes first.".to_string());
+    }
+
+    fs::remove_dir(full_path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn search_notes(query: String, state: State<AppState>) -> Result<Vec<SearchResult>, String> {
     let notes_dir = state.notes_dir.lock().unwrap().clone();
     let query_lower = query.to_lowercase();

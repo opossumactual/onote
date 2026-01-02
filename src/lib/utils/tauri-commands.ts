@@ -38,6 +38,33 @@ export interface AppSettings {
   font_size: number;
 }
 
+export interface AudioDevice {
+  id: string;
+  name: string;
+  is_default: boolean;
+}
+
+export interface WhisperModel {
+  id: string;
+  name: string;
+  size_mb: number;
+  description: string;
+}
+
+export interface ModelStatus {
+  id: string;
+  downloaded: boolean;
+  path: string | null;
+  size_mb: number;
+}
+
+export interface DownloadProgress {
+  model_id: string;
+  downloaded_bytes: number;
+  total_bytes: number;
+  percent: number;
+}
+
 // Note commands
 export async function listFolders(): Promise<FolderInfo[]> {
   return invoke<FolderInfo[]>("list_folders");
@@ -67,6 +94,14 @@ export async function searchNotes(query: string): Promise<SearchResult[]> {
   return invoke<SearchResult[]>("search_notes", { query });
 }
 
+export async function createFolder(name: string, parent?: string): Promise<string> {
+  return invoke<string>("create_folder", { name, parent });
+}
+
+export async function deleteFolder(path: string): Promise<void> {
+  return invoke("delete_folder", { path });
+}
+
 // Settings commands
 export async function getSettings(): Promise<AppSettings> {
   return invoke<AppSettings>("get_settings");
@@ -74,4 +109,63 @@ export async function getSettings(): Promise<AppSettings> {
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
   return invoke("save_settings", { settings });
+}
+
+// Audio device commands
+export async function listAudioDevices(): Promise<AudioDevice[]> {
+  return invoke<AudioDevice[]>("list_audio_devices");
+}
+
+export async function getSelectedDevice(): Promise<string | null> {
+  return invoke<string | null>("get_selected_device");
+}
+
+export async function setSelectedDevice(deviceId: string): Promise<void> {
+  return invoke("set_selected_device", { deviceId });
+}
+
+// Recording commands
+export async function startRecording(): Promise<void> {
+  return invoke("start_recording");
+}
+
+export async function stopRecording(): Promise<string> {
+  return invoke<string>("stop_recording");
+}
+
+export async function cancelRecording(): Promise<void> {
+  return invoke("cancel_recording");
+}
+
+export async function isRecording(): Promise<boolean> {
+  return invoke<boolean>("is_recording");
+}
+
+// Whisper model commands
+export async function listWhisperModels(): Promise<WhisperModel[]> {
+  return invoke<WhisperModel[]>("list_whisper_models");
+}
+
+export async function getModelStatus(modelId: string): Promise<ModelStatus> {
+  return invoke<ModelStatus>("get_model_status", { modelId });
+}
+
+export async function getSelectedModel(): Promise<string> {
+  return invoke<string>("get_selected_model");
+}
+
+export async function setSelectedModel(modelId: string): Promise<void> {
+  return invoke("set_selected_model", { modelId });
+}
+
+export async function downloadModel(modelId: string): Promise<string> {
+  return invoke<string>("download_model", { modelId });
+}
+
+export async function transcribe(audioPath: string): Promise<string> {
+  return invoke<string>("transcribe", { audioPath });
+}
+
+export async function deleteModel(modelId: string): Promise<void> {
+  return invoke("delete_model", { modelId });
 }

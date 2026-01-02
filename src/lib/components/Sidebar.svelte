@@ -6,6 +6,8 @@
   let searchResults = $state<SearchResult[]>([]);
   let isSearching = $state(false);
   let searchTimeout: ReturnType<typeof setTimeout>;
+  let showNewFolder = $state(false);
+  let newFolderName = $state("");
 
   function handleSearch() {
     clearTimeout(searchTimeout);
@@ -38,6 +40,23 @@
     searchResults = [];
     notesStore.selectNote(path);
   }
+
+  async function handleCreateFolder() {
+    if (!newFolderName.trim()) return;
+
+    await notesStore.addFolder(newFolderName.trim());
+    newFolderName = "";
+    showNewFolder = false;
+  }
+
+  function handleFolderKeydown(event: KeyboardEvent) {
+    if (event.key === "Enter") {
+      handleCreateFolder();
+    } else if (event.key === "Escape") {
+      showNewFolder = false;
+      newFolderName = "";
+    }
+  }
 </script>
 
 <div class="sidebar-content">
@@ -69,6 +88,31 @@
       {/each}
     </div>
   {:else}
+    <div class="folder-header">
+      <span class="folder-label">Folders</span>
+      <button
+        class="add-folder-btn"
+        onclick={() => (showNewFolder = !showNewFolder)}
+        title="New folder"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </button>
+    </div>
+
+    {#if showNewFolder}
+      <div class="new-folder-input">
+        <input
+          type="text"
+          placeholder="Folder name..."
+          bind:value={newFolderName}
+          onkeydown={handleFolderKeydown}
+        />
+        <button class="create-btn" onclick={handleCreateFolder}>Create</button>
+      </div>
+    {/if}
+
     <nav class="folder-tree">
       {#each notesStore.folders as folder}
         <button
@@ -164,6 +208,68 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .folder-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-xs) var(--space-sm);
+    margin-bottom: var(--space-xs);
+  }
+
+  .folder-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-disabled);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .add-folder-btn {
+    padding: var(--space-xs);
+    border-radius: 4px;
+    color: var(--text-disabled);
+    transition: all var(--transition-fast);
+  }
+
+  .add-folder-btn:hover {
+    background: var(--surface-2);
+    color: var(--text-primary);
+  }
+
+  .new-folder-input {
+    display: flex;
+    gap: var(--space-xs);
+    padding: 0 var(--space-sm);
+    margin-bottom: var(--space-sm);
+  }
+
+  .new-folder-input input {
+    flex: 1;
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--surface-0);
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+  }
+
+  .new-folder-input input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .create-btn {
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--accent);
+    color: white;
+    border-radius: 4px;
+    font-size: var(--font-size-xs);
+    transition: background var(--transition-fast);
+  }
+
+  .create-btn:hover {
+    background: var(--accent-hover);
   }
 
   .folder-tree {

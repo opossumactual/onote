@@ -70,6 +70,16 @@ function insertAtCursor(text: string) {
   }, 1000);
 }
 
+function clear() {
+  clearTimeout(saveTimeout);
+  content = "";
+  path = null;
+  isDirty = false;
+  isSaving = false;
+  cursorPosition = 0;
+  wordCount = 0;
+}
+
 // Export reactive getters and actions
 export const editorStore = {
   get content() {
@@ -95,4 +105,5 @@ export const editorStore = {
   save,
   updateCursor,
   insertAtCursor,
+  clear,
 };
