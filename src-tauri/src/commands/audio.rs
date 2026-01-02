@@ -1,11 +1,8 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Device, SampleFormat, SampleRate, StreamConfig};
-use hound::{WavSpec, WavWriter};
 use ringbuf::traits::{Consumer, Producer, Split};
 use ringbuf::HeapRb;
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -32,12 +29,11 @@ pub struct RecordingState {
 static RECORDING_ACTIVE: AtomicBool = AtomicBool::new(false);
 static STOP_SIGNAL: AtomicBool = AtomicBool::new(false);
 
-// Get audio data directory
-fn get_audio_dir(state: &State<AppState>) -> PathBuf {
-    let notes_dir = state.notes_dir.lock().unwrap().clone();
-    let audio_dir = notes_dir.join(".audio");
-    fs::create_dir_all(&audio_dir).ok();
-    audio_dir
+/// Audio samples result - kept in memory, never written to disk
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AudioSamples {
+    pub samples: Vec<f32>,
+    pub sample_rate: u32,
 }
 
 #[tauri::command]
@@ -325,7 +321,7 @@ fn run_recording(
 }
 
 #[tauri::command]
-pub fn stop_recording(state: State<AppState>) -> Result<String, String> {
+pub fn stop_recording(state: State<AppState>) -> Result<AudioSamples, String> {
     if !RECORDING_ACTIVE.load(Ordering::SeqCst) {
         return Err("Not recording".to_string());
     }
@@ -359,7 +355,12 @@ pub fn stop_recording(state: State<AppState>) -> Result<String, String> {
         return Err("No audio recorded".to_string());
     }
 
-    println!("Collected {} samples at {}Hz, {} channels", samples.len(), sample_rate, channels);
+    println!(
+        "Collected {} samples at {}Hz, {} channels",
+        samples.len(),
+        sample_rate,
+        channels
+    );
 
     // Convert to mono if stereo
     let mono_samples: Vec<f32> = if channels > 1 {
@@ -371,39 +372,23 @@ pub fn stop_recording(state: State<AppState>) -> Result<String, String> {
         samples
     };
 
-    // Resample to 16kHz if needed
+    // Resample to 16kHz if needed (whisper requirement)
     let final_samples = if sample_rate != 16000 {
         resample(&mono_samples, sample_rate, 16000)
     } else {
         mono_samples
     };
 
-    println!("Final samples: {} (resampled to 16kHz)", final_samples.len());
+    println!(
+        "Final samples: {} (resampled to 16kHz, memory-only)",
+        final_samples.len()
+    );
 
-    // Save to WAV file
-    let audio_dir = get_audio_dir(&state);
-    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-    let wav_path = audio_dir.join(format!("recording_{}.wav", timestamp));
-
-    let spec = WavSpec {
-        channels: 1,
+    // Return samples in memory - never written to disk
+    Ok(AudioSamples {
+        samples: final_samples,
         sample_rate: 16000,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
-    };
-
-    let mut writer = WavWriter::create(&wav_path, spec).map_err(|e| e.to_string())?;
-
-    for sample in &final_samples {
-        let s = (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
-        writer.write_sample(s).map_err(|e| e.to_string())?;
-    }
-
-    writer.finalize().map_err(|e| e.to_string())?;
-
-    println!("Saved recording to: {:?}", wav_path);
-
-    Ok(wav_path.to_string_lossy().to_string())
+    })
 }
 
 #[tauri::command]
