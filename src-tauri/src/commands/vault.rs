@@ -400,3 +400,72 @@ pub async fn is_vault_setup(
     let config = state.config()?;
     Ok(is_vault_initialized(&config))
 }
+
+/// Unlock vault with password
+#[tauri::command]
+pub async fn unlock_vault(
+    password: String,
+    state: tauri::State<'_, VaultState>,
+) -> Result<(), String> {
+    let config = state.config()?;
+
+    // Read salt
+    let salt_bytes = fs::read(&config.salt_path)
+        .map_err(|e| format!("Failed to read salt: {}", e))?;
+    if salt_bytes.len() != 32 {
+        return Err("Invalid salt file".to_string());
+    }
+    let mut salt = [0u8; 32];
+    salt.copy_from_slice(&salt_bytes);
+
+    // Derive KEK
+    let kek = Kek::derive(&password, &salt)?;
+
+    // Verify password by decrypting verify blob
+    let verify_encrypted = fs::read(&config.verify_path)
+        .map_err(|e| format!("Failed to read verify blob: {}", e))?;
+    let verify_decrypted = decrypt(kek.as_bytes(), &verify_encrypted)
+        .map_err(|_| "Wrong password".to_string())?;
+
+    if verify_decrypted != b"ghostnote-verify" {
+        return Err("Wrong password".to_string());
+    }
+
+    // Unlock
+    state.unlock(kek);
+    Ok(())
+}
+
+/// Lock vault
+#[tauri::command]
+pub async fn lock_vault(state: tauri::State<'_, VaultState>) -> Result<(), String> {
+    state.lock();
+    Ok(())
+}
+
+#[derive(serde::Serialize)]
+pub struct VaultStatus {
+    pub initialized: bool,
+    pub locked: bool,
+    pub timeout_remaining: u64,
+}
+
+/// Get vault lock status
+#[tauri::command]
+pub async fn get_vault_status(
+    state: tauri::State<'_, VaultState>,
+) -> Result<VaultStatus, String> {
+    let config = state.config()?;
+    Ok(VaultStatus {
+        initialized: is_vault_initialized(&config),
+        locked: !state.is_unlocked(),
+        timeout_remaining: state.time_until_lock(),
+    })
+}
+
+/// Record activity (reset auto-lock timer)
+#[tauri::command]
+pub async fn vault_activity(state: tauri::State<'_, VaultState>) -> Result<(), String> {
+    state.touch();
+    Ok(())
+}
