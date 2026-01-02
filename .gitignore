@@ -32,3 +32,6 @@ SKILL-*.md
 
 # Design prototypes
 design-*.html
+
+# Worktrees
+.worktrees/
