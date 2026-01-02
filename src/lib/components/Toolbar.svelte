@@ -107,7 +107,7 @@
   <div class="toolbar-drag-region" data-tauri-drag-region></div>
 
   <div class="toolbar-center">
-    <span class="app-title">onote</span>
+    <span class="app-title">ghostnote</span>
   </div>
 
   <div class="toolbar-right">

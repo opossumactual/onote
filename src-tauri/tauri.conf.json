@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "onote",
+  "productName": "ghostnote",
   "version": "0.1.0",
-  "identifier": "com.onote.voicenotes",
+  "identifier": "com.ghostnote.voicenotes",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5174",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "onote",
+        "title": "ghostnote",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
@@ -41,8 +41,8 @@
       "icons/icon.ico"
     ],
     "category": "Productivity",
-    "shortDescription": "Voice notes with local Whisper transcription",
-    "longDescription": "A minimalist voice notes app with local AI-powered speech-to-text using Whisper. Your notes stay on your device.",
+    "shortDescription": "Encrypted voice notes with local Whisper transcription",
+    "longDescription": "A hardened voice notes app with local AI-powered speech-to-text using Whisper. Notes are encrypted at rest with AES-256-GCM and audio never touches disk.",
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
