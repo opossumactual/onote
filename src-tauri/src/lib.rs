@@ -1,6 +1,7 @@
 mod commands;
 
 use commands::audio::RecordingState;
+use commands::vault::{VaultConfig, VaultState};
 use ringbuf::HeapCons;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -35,6 +36,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
+        .manage(VaultState::new())
         .setup(|app| {
             // Ensure notes directory exists
             let state = app.state::<AppState>();
@@ -44,6 +46,11 @@ pub fn run() {
                 // Create default inbox folder
                 std::fs::create_dir_all(notes_dir.join("inbox")).ok();
             }
+
+            // Initialize vault config
+            let vault_state = app.state::<VaultState>();
+            vault_state.set_config(VaultConfig::new(&notes_dir));
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

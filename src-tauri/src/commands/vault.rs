@@ -12,6 +12,8 @@ use aes_gcm::{
 use argon2::{Algorithm, Argon2, Params, Version};
 use rand::RngCore;
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Key Encryption Key - derived from password, wraps DEKs
@@ -223,5 +225,120 @@ impl RecoveryData {
         let mut arr = [0u8; 32];
         arr.copy_from_slice(&kek_bytes);
         Ok(Kek(arr))
+    }
+}
+
+// Make VaultConfig cloneable
+impl Clone for VaultConfig {
+    fn clone(&self) -> Self {
+        Self {
+            vault_dir: self.vault_dir.clone(),
+            salt_path: self.salt_path.clone(),
+            verify_path: self.verify_path.clone(),
+            recovery_path: self.recovery_path.clone(),
+        }
+    }
+}
+
+/// Thread-safe vault state
+pub struct VaultState {
+    inner: Mutex<VaultStateInner>,
+}
+
+struct VaultStateInner {
+    kek: Option<Kek>,
+    config: Option<VaultConfig>,
+    last_activity: Instant,
+    lock_timeout: Duration,
+}
+
+impl Default for VaultState {
+    fn default() -> Self {
+        Self {
+            inner: Mutex::new(VaultStateInner {
+                kek: None,
+                config: None,
+                last_activity: Instant::now(),
+                lock_timeout: Duration::from_secs(300), // 5 minutes default
+            }),
+        }
+    }
+}
+
+impl VaultState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Initialize vault config (called on app start)
+    pub fn set_config(&self, config: VaultConfig) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.config = Some(config);
+    }
+
+    /// Check if vault is unlocked
+    pub fn is_unlocked(&self) -> bool {
+        let inner = self.inner.lock().unwrap();
+        inner.kek.is_some()
+    }
+
+    /// Unlock vault with KEK
+    pub fn unlock(&self, kek: Kek) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.kek = Some(kek);
+        inner.last_activity = Instant::now();
+    }
+
+    /// Lock vault (clear KEK from memory)
+    pub fn lock(&self) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.kek = None; // Zeroize will clear memory
+    }
+
+    /// Record user activity (resets auto-lock timer)
+    pub fn touch(&self) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.last_activity = Instant::now();
+    }
+
+    /// Set auto-lock timeout
+    pub fn set_timeout(&self, seconds: u64) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.lock_timeout = Duration::from_secs(seconds);
+    }
+
+    /// Get time remaining until auto-lock (in seconds)
+    pub fn time_until_lock(&self) -> u64 {
+        let inner = self.inner.lock().unwrap();
+        let elapsed = inner.last_activity.elapsed();
+        if elapsed >= inner.lock_timeout {
+            0
+        } else {
+            (inner.lock_timeout - elapsed).as_secs()
+        }
+    }
+
+    /// Check if should auto-lock
+    pub fn should_lock(&self) -> bool {
+        let inner = self.inner.lock().unwrap();
+        inner.kek.is_some() && inner.last_activity.elapsed() >= inner.lock_timeout
+    }
+
+    /// Execute operation with KEK (returns error if locked)
+    pub fn with_kek<F, T>(&self, f: F) -> Result<T, String>
+    where
+        F: FnOnce(&Kek) -> Result<T, String>,
+    {
+        let inner = self.inner.lock().unwrap();
+        match &inner.kek {
+            Some(kek) => f(kek),
+            None => Err("Vault is locked".to_string()),
+        }
+    }
+
+    /// Get vault config
+    pub fn config(&self) -> Result<VaultConfig, String> {
+        let inner = self.inner.lock().unwrap();
+        inner.config.clone().ok_or_else(|| "Vault not configured".to_string())
     }
 }
