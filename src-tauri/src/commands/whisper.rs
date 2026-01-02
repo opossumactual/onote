@@ -183,8 +183,12 @@ pub async fn download_model(model_id: String, app: AppHandle) -> Result<String, 
     Ok(path.to_string_lossy().to_string())
 }
 
+/// Transcribe audio samples directly (memory-only, no disk access)
 #[tauri::command]
-pub async fn transcribe(audio_path: String, state: State<'_, AppState>) -> Result<String, String> {
+pub async fn transcribe(
+    samples: Vec<f32>,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
     let model_id = state.selected_model.lock().unwrap().clone();
     let model_path = get_model_path(&model_id);
 
@@ -195,18 +199,21 @@ pub async fn transcribe(audio_path: String, state: State<'_, AppState>) -> Resul
         ));
     }
 
-    println!("Transcribing {} with model {}", audio_path, model_id);
+    println!(
+        "Transcribing {} samples with model {}",
+        samples.len(),
+        model_id
+    );
     println!("Model path: {:?}", model_path);
 
-    // Clone paths for the blocking thread
-    let audio_path_owned = audio_path.clone();
+    // Clone model path for the blocking thread
     let model_path_owned = model_path.clone();
 
     // Run transcription in a blocking thread to avoid freezing the UI
     // Wrap in catch_unwind to prevent panics from crashing the app
     let result = tokio::task::spawn_blocking(move || {
         panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            transcribe_blocking(audio_path_owned, model_path_owned)
+            transcribe_blocking(samples, model_path_owned)
         }))
         .unwrap_or_else(|e| {
             let panic_msg = if let Some(s) = e.downcast_ref::<&str>() {
@@ -225,36 +232,8 @@ pub async fn transcribe(audio_path: String, state: State<'_, AppState>) -> Resul
     Ok(result)
 }
 
-fn transcribe_blocking(audio_path: String, model_path: PathBuf) -> Result<String, String> {
-    // Load the audio file
-    let mut reader = hound::WavReader::open(audio_path).map_err(|e| e.to_string())?;
-    let spec = reader.spec();
-
-    if spec.sample_rate != 16000 {
-        return Err(format!(
-            "Audio must be 16kHz, got {}Hz",
-            spec.sample_rate
-        ));
-    }
-
-    // Read samples as f32
-    let samples: Vec<f32> = match spec.sample_format {
-        hound::SampleFormat::Int => reader
-            .samples::<i16>()
-            .map(|s| s.unwrap_or(0) as f32 / i16::MAX as f32)
-            .collect(),
-        hound::SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap_or(0.0)).collect(),
-    };
-
-    // Convert to mono if stereo
-    let mono_samples: Vec<f32> = if spec.channels > 1 {
-        samples
-            .chunks(spec.channels as usize)
-            .map(|chunk| chunk.iter().sum::<f32>() / chunk.len() as f32)
-            .collect()
-    } else {
-        samples
-    };
+fn transcribe_blocking(mut samples: Vec<f32>, model_path: PathBuf) -> Result<String, String> {
+    // Samples are already 16kHz mono from stop_recording
 
     // Initialize Whisper
     let model_path_str = model_path
@@ -285,8 +264,14 @@ fn transcribe_blocking(audio_path: String, model_path: PathBuf) -> Result<String
 
     // Run transcription
     whisper_state
-        .full(params, &mono_samples)
+        .full(params, &samples)
         .map_err(|e| format!("Transcription failed: {:?}", e))?;
+
+    // Clear audio samples from memory after transcription (forensic resistance)
+    for sample in samples.iter_mut() {
+        *sample = 0.0;
+    }
+    drop(samples);
 
     // Collect results
     let num_segments = whisper_state.full_n_segments().map_err(|e| format!("Failed to get segments: {:?}", e))?;
