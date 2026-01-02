@@ -141,11 +141,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Disable native CPU optimizations to avoid i8mm compile issues
+          # Disable native CPU optimizations to avoid i8mm compile issues on ARM
+          GGML_NO_NATIVE: "1"
           GGML_NO_ACCELERATE: "1"
-          WHISPER_NO_AVX: "1"
-          WHISPER_NO_AVX2: "1"
-          WHISPER_NO_FMA: "1"
         with:
           tagName: v__VERSION__
           releaseName: 'onote v__VERSION__'
