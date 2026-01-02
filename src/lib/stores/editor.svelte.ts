@@ -1,4 +1,5 @@
 import { readNote, saveNote } from "../utils/tauri-commands";
+import { notesStore } from "./notes.svelte";
 
 // State
 let content = $state("");
@@ -7,8 +8,14 @@ let isDirty = $state(false);
 let isSaving = $state(false);
 let cursorPosition = $state(0);
 let wordCount = $state(0);
+let lastSavedTitle = $state("");
 
 let saveTimeout: ReturnType<typeof setTimeout>;
+
+// Helper to extract title (first line)
+function getTitle(text: string): string {
+  return text.split('\n')[0].replace(/^#*\s*/, '').trim();
+}
 
 // Derived
 const computedWordCount = $derived(content.split(/\s+/).filter(Boolean).length);
@@ -20,6 +27,7 @@ async function loadNote(notePath: string) {
     path = notePath;
     content = result.content;
     wordCount = content.split(/\s+/).filter(Boolean).length;
+    lastSavedTitle = getTitle(result.content);
     isDirty = false;
   } catch (error) {
     console.error("Failed to load note:", error);
@@ -27,9 +35,20 @@ async function loadNote(notePath: string) {
 }
 
 function updateContent(newContent: string) {
+  const oldTitle = getTitle(content);
   content = newContent;
   wordCount = newContent.split(/\s+/).filter(Boolean).length;
   isDirty = true;
+
+  const newTitle = getTitle(newContent);
+  const hasNewline = newContent.includes('\n');
+
+  // If title changed and user pressed Enter (moved to next line), save immediately
+  if (hasNewline && newTitle !== lastSavedTitle && newTitle !== oldTitle) {
+    clearTimeout(saveTimeout);
+    save();
+    return;
+  }
 
   // Debounced auto-save (3 seconds after typing stops)
   clearTimeout(saveTimeout);
@@ -45,6 +64,9 @@ async function save() {
   try {
     await saveNote(path, content);
     isDirty = false;
+    lastSavedTitle = getTitle(content);
+    // Refresh notes list to update title/preview in sidebar
+    await notesStore.loadNotes(notesStore.selectedFolder);
   } catch (error) {
     console.error("Failed to save note:", error);
   } finally {

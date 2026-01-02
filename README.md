@@ -47,6 +47,10 @@ Download the latest release for your platform:
 3. **Edit** - Transcription appears in your note, ready to edit
 4. **Save** - Notes are saved as markdown files in `~/Documents/opnotes/`
 
+### Note Titles
+
+The first line of each note becomes its title in the sidebar. When you finish typing the title and press Enter, the sidebar updates instantly. Titles can optionally start with `#` for markdown heading style.
+
 ### Whisper Models
 
 On first use, you'll need to download a Whisper model in Settings:
