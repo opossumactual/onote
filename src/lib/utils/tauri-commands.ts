@@ -65,6 +65,11 @@ export interface DownloadProgress {
   percent: number;
 }
 
+export interface AudioSamples {
+  samples: number[];
+  sample_rate: number;
+}
+
 // Note commands
 export async function listFolders(): Promise<FolderInfo[]> {
   return invoke<FolderInfo[]>("list_folders");
@@ -133,8 +138,8 @@ export async function startRecording(): Promise<void> {
   return invoke("start_recording");
 }
 
-export async function stopRecording(): Promise<string> {
-  return invoke<string>("stop_recording");
+export async function stopRecording(): Promise<AudioSamples> {
+  return invoke<AudioSamples>("stop_recording");
 }
 
 export async function cancelRecording(): Promise<void> {
@@ -166,8 +171,8 @@ export async function downloadModel(modelId: string): Promise<string> {
   return invoke<string>("download_model", { modelId });
 }
 
-export async function transcribe(audioPath: string): Promise<string> {
-  return invoke<string>("transcribe", { audioPath });
+export async function transcribe(samples: number[]): Promise<string> {
+  return invoke<string>("transcribe", { samples });
 }
 
 export async function deleteModel(modelId: string): Promise<void> {

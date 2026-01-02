@@ -39,9 +39,9 @@ async function stopRecording(): Promise<string | null> {
     status = "processing";
     console.log("Stopping recording...");
 
-    // Stop recording and get the audio file path
-    const audioPath = await commands.stopRecording();
-    console.log("Audio saved to:", audioPath);
+    // Stop recording and get audio samples (memory-only, never written to disk)
+    const audioSamples = await commands.stopRecording();
+    console.log("Audio samples captured:", audioSamples.samples.length);
 
     // Check if the model is downloaded
     const modelId = await commands.getSelectedModel();
@@ -54,9 +54,9 @@ async function stopRecording(): Promise<string | null> {
       return null;
     }
 
-    // Transcribe the audio
+    // Transcribe the audio samples directly
     console.log("Transcribing with model:", modelId);
-    const transcription = await commands.transcribe(audioPath);
+    const transcription = await commands.transcribe(audioSamples.samples);
     console.log("Transcription:", transcription);
 
     status = "idle";
