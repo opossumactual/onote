@@ -15,7 +15,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         let default_dir = dirs::document_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("opnotes");
+            .join("ghostnote");
 
         Self {
             notes_dir: default_dir.to_string_lossy().to_string(),
@@ -28,7 +28,7 @@ impl Default for AppSettings {
 fn config_path() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("opnotes")
+        .join("ghostnote")
         .join("config.json")
 }
 

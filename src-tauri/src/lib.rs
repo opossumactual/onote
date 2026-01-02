@@ -20,7 +20,7 @@ impl Default for AppState {
     fn default() -> Self {
         let default_dir = dirs::document_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("opnotes");
+            .join("ghostnote");
 
         Self {
             notes_dir: Mutex::new(default_dir),

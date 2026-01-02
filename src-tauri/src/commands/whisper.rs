@@ -64,7 +64,7 @@ const MODELS: &[(&str, &str, u32, &str)] = &[
 fn get_models_dir() -> PathBuf {
     let data_dir = dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("opnotes")
+        .join("ghostnote")
         .join("models");
     fs::create_dir_all(&data_dir).ok();
     data_dir
