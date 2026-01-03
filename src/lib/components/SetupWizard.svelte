@@ -6,6 +6,7 @@
   let confirmPassword = $state('');
   let loading = $state(false);
   let passwordError = $state<string | null>(null);
+  let setupError = $state<string | null>(null);
   let copiedRecoveryKey = $state(false);
   let confirmedSaved = $state(false);
 
@@ -23,11 +24,16 @@
   async function handleSetup() {
     if (passwordError || !password || password !== confirmPassword) return;
     loading = true;
+    setupError = null;
     try {
       await vaultStore.setup(password);
+      console.log('Setup complete, recovery key:', vaultStore.recoveryKey);
       password = '';
       confirmPassword = '';
       step = 2;
+    } catch (e) {
+      setupError = e instanceof Error ? e.message : String(e);
+      console.error('Setup failed:', setupError);
     } finally {
       loading = false;
     }
@@ -40,8 +46,11 @@
     }
   }
 
-  function finish() {
+  async function finish() {
     vaultStore.clearRecoveryKey();
+    // Now that user has confirmed they saved the recovery key,
+    // update status so App.svelte transitions to the main app
+    await vaultStore.checkStatus();
   }
 </script>
 
@@ -81,6 +90,10 @@
 
         {#if passwordError}
           <p class="error">{passwordError}</p>
+        {/if}
+
+        {#if setupError}
+          <p class="error">{setupError}</p>
         {/if}
 
         <button

@@ -33,7 +33,10 @@ export const vaultStore = {
     try {
       const result = await invoke<{ recovery_key: string }>('setup_vault', { password });
       recoveryKey = result.recovery_key;
-      await this.checkStatus();
+      // NOTE: Don't call checkStatus() here! That would set initialized=true
+      // and App.svelte would switch away from SetupWizard before user sees recovery key.
+      // The SetupWizard's finish() function calls clearRecoveryKey() which triggers
+      // the transition after user confirms they saved the key.
     } catch (e) {
       error = String(e);
       throw e;
@@ -63,7 +66,8 @@ export const vaultStore = {
         newPassword,
       });
       recoveryKey = result.recovery_key;
-      await this.checkStatus();
+      // NOTE: Don't call checkStatus() here! User needs to see and save
+      // the new recovery key before transitioning to the app.
     } catch (e) {
       error = String(e);
       throw e;

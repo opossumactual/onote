@@ -37,6 +37,8 @@
   let confirmPassword = $state('');
   let changingPassword = $state(false);
   let passwordError = $state<string | null>(null);
+  let newRecoveryKey = $state<string | null>(null);
+  let copiedNewKey = $state(false);
 
   const autoLockOptions = [
     { value: 1, label: '1 minute' },
@@ -142,7 +144,8 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
+    // Don't close if showing recovery key - user must explicitly dismiss
+    if (event.key === "Escape" && !newRecoveryKey) {
       onclose();
     }
   }
@@ -178,12 +181,13 @@
 
     changingPassword = true;
     try {
-      await invoke('change_password', {
+      const result = await invoke<{ recovery_key: string }>('change_password', {
         currentPassword,
         newPassword
       });
-      // Reset form
-      showChangePassword = false;
+      // Show new recovery key - user must save it
+      newRecoveryKey = result.recovery_key;
+      // Clear password fields but keep form visible
       currentPassword = '';
       newPassword = '';
       confirmPassword = '';
@@ -194,11 +198,19 @@
     }
   }
 
-  function handleBackdropClick(event: MouseEvent) {
-    if (event.target === event.currentTarget) {
-      onclose();
+  async function copyNewRecoveryKey() {
+    if (newRecoveryKey) {
+      await navigator.clipboard.writeText(newRecoveryKey);
+      copiedNewKey = true;
     }
   }
+
+  function dismissRecoveryKey() {
+    newRecoveryKey = null;
+    copiedNewKey = false;
+    showChangePassword = false;
+  }
+
 
   function formatSize(mb: number): string {
     if (mb >= 1000) {
@@ -219,7 +231,6 @@
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
     class="overlay"
-    onclick={handleBackdropClick}
     onkeydown={handleKeydown}
     role="dialog"
     aria-modal="true"
@@ -356,44 +367,67 @@
               Lock Now
             </button>
 
-            <button
-              class="change-password-toggle"
-              onclick={() => showChangePassword = !showChangePassword}
-            >
-              {showChangePassword ? 'Cancel' : 'Change Password'}
-            </button>
+            {#if !newRecoveryKey}
+              <button
+                class="change-password-toggle"
+                onclick={() => showChangePassword = !showChangePassword}
+              >
+                {showChangePassword ? 'Cancel' : 'Change Password'}
+              </button>
+            {/if}
           </div>
 
           {#if showChangePassword}
             <div class="change-password-form">
-              <input
-                type="password"
-                bind:value={currentPassword}
-                placeholder="Current password"
-                disabled={changingPassword}
-              />
-              <input
-                type="password"
-                bind:value={newPassword}
-                placeholder="New password (min 8 chars)"
-                disabled={changingPassword}
-              />
-              <input
-                type="password"
-                bind:value={confirmPassword}
-                placeholder="Confirm new password"
-                disabled={changingPassword}
-              />
-              {#if passwordError}
-                <p class="password-error">{passwordError}</p>
+              {#if newRecoveryKey}
+                <!-- Show new recovery key after successful password change -->
+                <div class="recovery-key-notice">
+                  <h4>Save Your New Recovery Key</h4>
+                  <p class="warning-text">Your old recovery key no longer works!</p>
+                  <div class="recovery-key-box">
+                    <code>{newRecoveryKey}</code>
+                  </div>
+                  <button class="copy-key-btn" onclick={copyNewRecoveryKey}>
+                    {copiedNewKey ? 'Copied!' : 'Copy Recovery Key'}
+                  </button>
+                  <button
+                    class="dismiss-key-btn"
+                    onclick={dismissRecoveryKey}
+                    disabled={!copiedNewKey}
+                  >
+                    I've Saved It
+                  </button>
+                </div>
+              {:else}
+                <input
+                  type="password"
+                  bind:value={currentPassword}
+                  placeholder="Current password"
+                  disabled={changingPassword}
+                />
+                <input
+                  type="password"
+                  bind:value={newPassword}
+                  placeholder="New password (min 8 chars)"
+                  disabled={changingPassword}
+                />
+                <input
+                  type="password"
+                  bind:value={confirmPassword}
+                  placeholder="Confirm new password"
+                  disabled={changingPassword}
+                />
+                {#if passwordError}
+                  <p class="password-error">{passwordError}</p>
+                {/if}
+                <button
+                  class="save-password-btn"
+                  onclick={handleChangePassword}
+                  disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
+                >
+                  {changingPassword ? 'Changing...' : 'Save New Password'}
+                </button>
               {/if}
-              <button
-                class="save-password-btn"
-                onclick={handleChangePassword}
-                disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
-              >
-                {changingPassword ? 'Changing...' : 'Save New Password'}
-              </button>
             </div>
           {/if}
         </section>
@@ -919,6 +953,73 @@
   }
 
   .save-password-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .recovery-key-notice {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    text-align: center;
+  }
+
+  .recovery-key-notice h4 {
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .warning-text {
+    color: #ffaa44;
+    font-size: var(--font-size-xs);
+    margin: 0;
+  }
+
+  .recovery-key-box {
+    padding: var(--space-md);
+    background: var(--surface-2);
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+  }
+
+  .recovery-key-box code {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--accent);
+    word-break: break-all;
+  }
+
+  .copy-key-btn {
+    padding: var(--space-sm) var(--space-md);
+    background: transparent;
+    border: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    border-radius: 4px;
+    transition: all var(--transition-fast);
+  }
+
+  .copy-key-btn:hover {
+    background: var(--surface-3);
+    color: var(--text-primary);
+  }
+
+  .dismiss-key-btn {
+    padding: var(--space-sm) var(--space-md);
+    background: var(--accent);
+    color: var(--surface-0);
+    font-size: var(--font-size-sm);
+    border-radius: 4px;
+    transition: all var(--transition-fast);
+  }
+
+  .dismiss-key-btn:hover:not(:disabled) {
+    background: var(--accent-hover);
+  }
+
+  .dismiss-key-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
