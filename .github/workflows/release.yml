@@ -142,7 +142,13 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MACOSX_DEPLOYMENT_TARGET: "10.15"
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          # Disable i8mm instructions for compatibility with all Apple Silicon (M1 base doesn't have i8mm)
+          CFLAGS: "-march=armv8-a -mtune=generic"
+          CXXFLAGS: "-march=armv8-a -mtune=generic"
+          # Also set cmake-specific flags for whisper-rs-sys
+          CMAKE_C_FLAGS: "-march=armv8-a -mtune=generic"
+          CMAKE_CXX_FLAGS: "-march=armv8-a -mtune=generic"
         with:
           tagName: v__VERSION__
           releaseName: 'onote v__VERSION__'
