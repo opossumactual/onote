@@ -195,7 +195,28 @@ pub async fn transcribe(audio_path: String, state: State<'_, AppState>) -> Resul
         ));
     }
 
+    // Validate model file size
+    let expected_size = MODELS
+        .iter()
+        .find(|(id, _, _, _)| *id == model_id)
+        .map(|(_, _, size_mb, _)| *size_mb as u64 * 1_000_000) // Approximate bytes
+        .unwrap_or(0);
+
+    let actual_size = fs::metadata(&model_path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    // Check if file is too small (likely corrupted/incomplete)
+    if actual_size < expected_size / 2 {
+        return Err(format!(
+            "Model file appears corrupted ({}MB vs expected ~{}MB). Please delete and re-download.",
+            actual_size / 1_000_000,
+            expected_size / 1_000_000
+        ));
+    }
+
     println!("Transcribing {} with model {}", audio_path, model_id);
+    println!("Model size: {}MB", actual_size / 1_000_000);
     println!("Model path: {:?}", model_path);
 
     // Clone paths for the blocking thread
@@ -289,13 +310,15 @@ fn transcribe_blocking(audio_path: String, model_path: PathBuf) -> Result<String
         .map_err(|e| format!("Transcription failed: {:?}", e))?;
 
     // Collect results
-    let num_segments = whisper_state.full_n_segments().map_err(|e| format!("Failed to get segments: {:?}", e))?;
+    let num_segments = whisper_state.full_n_segments();
     let mut text = String::new();
 
     for i in 0..num_segments {
-        if let Ok(segment) = whisper_state.full_get_segment_text(i) {
-            text.push_str(&segment);
-            text.push(' ');
+        if let Some(segment) = whisper_state.get_segment(i) {
+            if let Ok(segment_text) = segment.to_str_lossy() {
+                text.push_str(&segment_text);
+                text.push(' ');
+            }
         }
     }
 
