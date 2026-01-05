@@ -109,6 +109,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MACOSX_DEPLOYMENT_TARGET: "10.15"
         with:
           tagName: v__VERSION__
           releaseName: 'onote v__VERSION__'
@@ -141,9 +142,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Force base ARMv8 to avoid i8mm instructions that require newer features
-          CFLAGS: "-march=armv8-a"
-          CXXFLAGS: "-march=armv8-a"
+          MACOSX_DEPLOYMENT_TARGET: "10.15"
         with:
           tagName: v__VERSION__
           releaseName: 'onote v__VERSION__'
