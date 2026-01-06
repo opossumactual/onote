@@ -254,12 +254,13 @@ async fn transcribe_subprocess(audio_path: String, model_path: PathBuf) -> Resul
         .find(|p| std::path::Path::new(p).exists())
         .ok_or_else(|| {
             "whisper-cli not found. Please install: brew install whisper-cpp".to_string()
-        })?;
+        })?
+        .to_string();
 
     println!("Using whisper-cli: {}", whisper_bin);
 
     let output = tokio::task::spawn_blocking(move || {
-        Command::new(whisper_bin)
+        Command::new(&whisper_bin)
             .args([
                 "-m", &model_path_str,
                 "-f", &audio_path,
