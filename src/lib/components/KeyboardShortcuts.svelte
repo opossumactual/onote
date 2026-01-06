@@ -13,7 +13,7 @@
     { keys: ["Ctrl", "R"], action: "Toggle recording" },
     { keys: ["Ctrl", "S"], action: "Save note" },
     { keys: ["Ctrl", "/"], action: "Show shortcuts" },
-    { keys: ["Delete"], action: "Delete selected note" },
+    { keys: ["Ctrl", "D"], action: "Delete selected note" },
     { keys: ["Esc"], action: "Close dialogs" },
   ];
 

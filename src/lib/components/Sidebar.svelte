@@ -73,31 +73,42 @@
     }
   }
 
+  let originalName = $state("");
+
   function startRename(event: MouseEvent, path: string, name: string) {
     event.stopPropagation();
     renamingFolder = path;
     renameValue = name;
+    originalName = name;
+    console.log("startRename:", { path, name });
   }
 
   async function handleRename(oldPath: string) {
-    if (!renameValue.trim() || renameValue === renamingFolder) {
+    console.log("handleRename called:", { oldPath, renameValue, originalName });
+
+    if (!renameValue.trim() || renameValue.trim() === originalName) {
+      console.log("handleRename: no change, canceling");
       renamingFolder = null;
       return;
     }
     try {
+      console.log("Calling renameFolder:", { oldPath, newName: renameValue.trim() });
       const newPath = await renameFolder(oldPath, renameValue.trim());
+      console.log("renameFolder returned:", newPath);
       await notesStore.loadFolders();
       // If we renamed the selected folder, update selection
       if (notesStore.selectedFolder === oldPath) {
         notesStore.selectFolder(newPath);
       }
     } catch (error) {
+      console.error("Rename error:", error);
       alert(`Failed to rename folder: ${error}`);
     }
     renamingFolder = null;
   }
 
   function handleRenameKeydown(event: KeyboardEvent, path: string) {
+    console.log("handleRenameKeydown:", event.key);
     if (event.key === "Enter") {
       handleRename(path);
     } else if (event.key === "Escape") {

@@ -28,12 +28,6 @@
       return;
     }
 
-    // Delete selected note (only when not in an input/textarea)
-    if (event.key === "Delete" && !isInputFocused()) {
-      event.preventDefault();
-      handleDeleteSelectedNote();
-      return;
-    }
 
     if (event.ctrlKey || event.metaKey) {
       switch (event.key.toLowerCase()) {
@@ -58,6 +52,10 @@
         case "s":
           // Prevent browser save dialog - actual save is handled by Editor
           event.preventDefault();
+          break;
+        case "d":
+          event.preventDefault();
+          handleDeleteSelectedNote();
           break;
         case "/":
           event.preventDefault();
