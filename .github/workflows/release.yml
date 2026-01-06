@@ -149,6 +149,9 @@ jobs:
           # macOS 13.0 minimum for Metal residency sets used by whisper.cpp
           MACOSX_DEPLOYMENT_TARGET: "13.0"
           CMAKE_OSX_DEPLOYMENT_TARGET: "13.0"
+          # Disable i8mm instructions (requires ARMv8.6+, M1 is ARMv8.4)
+          CMAKE_C_FLAGS: "-march=armv8-a+fp+simd+crc+crypto -mtune=generic"
+          CMAKE_CXX_FLAGS: "-march=armv8-a+fp+simd+crc+crypto -mtune=generic"
         with:
           tagName: v__VERSION__
           releaseName: 'onote v__VERSION__'
