@@ -55,9 +55,7 @@
     },
     "macOS": {
       "entitlements": null,
-      "infoPlist": {
-        "NSMicrophoneUsageDescription": "onote needs microphone access to record voice notes for transcription."
-      }
+      "infoPlist": "Info.plist"
     }
   }
 }
