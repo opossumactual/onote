@@ -146,12 +146,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Force macOS 11.0 minimum for std::filesystem support
-          MACOSX_DEPLOYMENT_TARGET: "11.0"
-          CMAKE_OSX_DEPLOYMENT_TARGET: "11.0"
-          # ARM flags: base armv8-a for M1 compatibility (no i8mm)
-          CFLAGS: "-march=armv8-a -mtune=generic"
-          CXXFLAGS: "-march=armv8-a -mtune=generic"
+          # macOS 13.0 minimum for Metal residency sets used by whisper.cpp
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
+          CMAKE_OSX_DEPLOYMENT_TARGET: "13.0"
         with:
           tagName: v__VERSION__
           releaseName: 'onote v__VERSION__'
