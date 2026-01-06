@@ -22,15 +22,17 @@ const computedWordCount = $derived(content.split(/\s+/).filter(Boolean).length);
 
 // Actions
 async function loadNote(notePath: string) {
+  // Set path immediately so delete works without waiting for content load
+  path = notePath;
   try {
     const result = await readNote(notePath);
-    path = notePath;
     content = result.content;
     wordCount = content.split(/\s+/).filter(Boolean).length;
     lastSavedTitle = getTitle(result.content);
     isDirty = false;
   } catch (error) {
     console.error("Failed to load note:", error);
+    path = null; // Reset path if load fails
   }
 }
 
