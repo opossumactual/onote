@@ -279,29 +279,9 @@ async fn transcribe_subprocess(audio_path: String, model_path: PathBuf) -> Resul
         return Err(format!("whisper-cli failed: {}", stderr));
     }
 
-    // Parse output - whisper-cli outputs timestamped lines like:
-    // [00:00:00.000 --> 00:00:05.000]   Text here
+    // With -nt flag, whisper-cli outputs plain text (no timestamps)
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let text: String = stdout
-        .lines()
-        .filter_map(|line| {
-            // Extract text after the timestamp bracket
-            if let Some(idx) = line.find(']') {
-                Some(line[idx + 1..].trim())
-            } else {
-                // Line without timestamp, include as-is
-                let trimmed = line.trim();
-                if !trimmed.is_empty() {
-                    Some(trimmed)
-                } else {
-                    None
-                }
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
-
-    let result = text.trim().to_string();
+    let result = stdout.trim().to_string();
     println!("Transcription: {}", result);
 
     Ok(result)
