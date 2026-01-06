@@ -1,6 +1,7 @@
 <script lang="ts">
   import { notesStore } from "../stores/notes.svelte";
   import { searchNotes, renameFolder, type SearchResult } from "../utils/tauri-commands";
+  import { showConfirm } from "../stores/confirm.svelte";
 
   let searchQuery = $state("");
   let searchResults = $state<SearchResult[]>([]);
@@ -62,16 +63,12 @@
 
   async function handleDeleteFolder(event: MouseEvent, path: string, name: string) {
     event.stopPropagation();
-    console.log("Delete folder clicked for:", path, name);
 
-    if (confirm(`Delete folder "${name}" and all its notes?`)) {
+    if (await showConfirm(`Delete folder "${name}" and all its notes?`)) {
       try {
-        console.log("Calling removeFolder...");
         await notesStore.removeFolder(path);
-        console.log("removeFolder completed");
       } catch (error) {
         console.error("Delete folder error:", error);
-        alert(`Failed to delete folder: ${error}`);
       }
     }
   }

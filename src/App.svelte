@@ -7,11 +7,13 @@
   import StatusBar from "./lib/components/StatusBar.svelte";
   import KeyboardShortcuts from "./lib/components/KeyboardShortcuts.svelte";
   import Settings from "./lib/components/Settings.svelte";
+  import ConfirmDialog from "./lib/components/ConfirmDialog.svelte";
   import { uiStore } from "./lib/stores/ui.svelte";
   import { notesStore } from "./lib/stores/notes.svelte";
   import { editorStore } from "./lib/stores/editor.svelte";
   import { recordingStore } from "./lib/stores/recording.svelte";
   import { themeStore } from "./lib/stores/theme.svelte";
+  import { confirmStore, showConfirm } from "./lib/stores/confirm.svelte";
 
   let showShortcuts = $state(false);
 
@@ -75,7 +77,7 @@
   async function handleDeleteSelectedNote() {
     if (!editorStore.path) return;
 
-    if (confirm("Delete this note?")) {
+    if (await showConfirm("Delete this note?")) {
       const pathToDelete = editorStore.path;
       await notesStore.removeNote(pathToDelete);
       // Load first available note or clear editor
@@ -137,6 +139,14 @@
 
 <KeyboardShortcuts visible={showShortcuts} onclose={() => (showShortcuts = false)} />
 <Settings visible={uiStore.settingsOpen} onclose={() => uiStore.closeSettings()} />
+
+{#if confirmStore.isOpen}
+  <ConfirmDialog
+    message={confirmStore.message}
+    onConfirm={confirmStore.handleConfirm}
+    onCancel={confirmStore.handleCancel}
+  />
+{/if}
 
 <style>
   .app {
