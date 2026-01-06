@@ -29,13 +29,18 @@ Download the latest release for your platform:
 
 ### macOS Installation
 
+**Prerequisites:**
+```bash
+brew install whisper-cpp
+```
+
 Since the app isn't signed with an Apple Developer certificate, macOS will block it by default. After downloading and moving to Applications:
 
 ```bash
 xattr -cr /Applications/onote.app
 ```
 
-Then open the app normally. You only need to run this once per download.
+Then open the app normally. You only need to run `xattr` once per download.
 
 ## Keyboard Shortcuts
 

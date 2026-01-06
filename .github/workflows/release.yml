@@ -146,14 +146,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS 13.0 minimum for Metal residency sets used by whisper.cpp
-          MACOSX_DEPLOYMENT_TARGET: "13.0"
-          CMAKE_OSX_DEPLOYMENT_TARGET: "13.0"
-          # Force base ARMv8 without i8mm (M1 is ARMv8.4, i8mm requires ARMv8.6)
-          GGML_CPU_ARM_ARCH: "armv8-a"
-          # Also try CFLAGS as backup
-          CFLAGS: "-march=armv8-a -mtune=apple-m1"
-          CXXFLAGS: "-march=armv8-a -mtune=apple-m1"
+          # macOS 11.0 minimum (no whisper-rs on macOS, uses subprocess)
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
         with:
           tagName: v__VERSION__
           releaseName: 'onote v__VERSION__'

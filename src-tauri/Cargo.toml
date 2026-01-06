@@ -23,13 +23,16 @@ tokio = { version = "1", features = ["full"] }
 dirs = "5"
 
 # Audio and transcription
-whisper-rs = { version = "0.15", features = ["metal"] }
 cpal = "0.15"
 hound = "3.5"
 ringbuf = "0.4"
 reqwest = { version = "0.12", features = ["blocking", "stream"] }
 futures-util = "0.3"
 bytemuck = { version = "1", features = ["derive"] }
+
+# whisper-rs only on non-macOS (macOS uses subprocess to call homebrew whisper-cli)
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+whisper-rs = "0.15"
 
 [profile.release]
 panic = "abort"

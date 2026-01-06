@@ -77,6 +77,7 @@ pub fn run() {
             commands::whisper::download_model,
             commands::whisper::transcribe,
             commands::whisper::delete_model,
+            commands::whisper::check_whisper_cli,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

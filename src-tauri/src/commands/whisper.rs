@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::Write;
-use std::panic;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, State};
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+
+#[cfg(target_os = "macos")]
+use std::process::Command;
 
 use crate::AppState;
 
@@ -199,14 +200,13 @@ pub async fn transcribe(audio_path: String, state: State<'_, AppState>) -> Resul
     let expected_size = MODELS
         .iter()
         .find(|(id, _, _, _)| *id == model_id)
-        .map(|(_, _, size_mb, _)| *size_mb as u64 * 1_000_000) // Approximate bytes
+        .map(|(_, _, size_mb, _)| *size_mb as u64 * 1_000_000)
         .unwrap_or(0);
 
     let actual_size = fs::metadata(&model_path)
         .map(|m| m.len())
         .unwrap_or(0);
 
-    // Check if file is too small (likely corrupted/incomplete)
     if actual_size < expected_size / 2 {
         return Err(format!(
             "Model file appears corrupted ({}MB vs expected ~{}MB). Please delete and re-download.",
@@ -216,39 +216,103 @@ pub async fn transcribe(audio_path: String, state: State<'_, AppState>) -> Resul
     }
 
     println!("Transcribing {} with model {}", audio_path, model_id);
-    println!("Model size: {}MB", actual_size / 1_000_000);
     println!("Model path: {:?}", model_path);
 
-    // Clone paths for the blocking thread
-    let audio_path_owned = audio_path.clone();
-    let model_path_owned = model_path.clone();
+    // Use subprocess on macOS, whisper-rs on other platforms
+    #[cfg(target_os = "macos")]
+    {
+        transcribe_subprocess(audio_path, model_path).await
+    }
 
-    // Run transcription in a blocking thread to avoid freezing the UI
-    // Wrap in catch_unwind to prevent panics from crashing the app
-    let result = tokio::task::spawn_blocking(move || {
-        panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            transcribe_blocking(audio_path_owned, model_path_owned)
-        }))
-        .unwrap_or_else(|e| {
-            let panic_msg = if let Some(s) = e.downcast_ref::<&str>() {
-                s.to_string()
-            } else if let Some(s) = e.downcast_ref::<String>() {
-                s.clone()
-            } else {
-                "Unknown panic in Whisper transcription".to_string()
-            };
-            Err(format!("Whisper crashed: {}", panic_msg))
+    #[cfg(not(target_os = "macos"))]
+    {
+        let audio_path_owned = audio_path.clone();
+        let model_path_owned = model_path.clone();
+
+        tokio::task::spawn_blocking(move || {
+            transcribe_with_whisper_rs(audio_path_owned, model_path_owned)
         })
+        .await
+        .map_err(|e| format!("Task failed: {:?}", e))?
+    }
+}
+
+/// Transcribe using whisper-cli subprocess (macOS)
+#[cfg(target_os = "macos")]
+async fn transcribe_subprocess(audio_path: String, model_path: PathBuf) -> Result<String, String> {
+    let model_path_str = model_path.to_string_lossy().to_string();
+
+    // Try to find whisper-cli in common locations
+    let whisper_paths = [
+        "/opt/homebrew/bin/whisper-cli",
+        "/usr/local/bin/whisper-cli",
+        "/opt/homebrew/Cellar/whisper-cpp/1.8.2/bin/whisper-cli",
+    ];
+
+    let whisper_bin = whisper_paths
+        .iter()
+        .find(|p| std::path::Path::new(p).exists())
+        .ok_or_else(|| {
+            "whisper-cli not found. Please install: brew install whisper-cpp".to_string()
+        })?;
+
+    println!("Using whisper-cli: {}", whisper_bin);
+
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(whisper_bin)
+            .args([
+                "-m", &model_path_str,
+                "-f", &audio_path,
+                "-l", "en",
+                "-nt",  // no timestamps
+                "-np",  // no prints (progress)
+            ])
+            .output()
     })
     .await
-    .map_err(|e| format!("Task failed: {:?}", e))??;
+    .map_err(|e| format!("Task failed: {:?}", e))?
+    .map_err(|e| format!("Failed to run whisper-cli: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("whisper-cli failed: {}", stderr));
+    }
+
+    // Parse output - whisper-cli outputs timestamped lines like:
+    // [00:00:00.000 --> 00:00:05.000]   Text here
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let text: String = stdout
+        .lines()
+        .filter_map(|line| {
+            // Extract text after the timestamp bracket
+            if let Some(idx) = line.find(']') {
+                Some(line[idx + 1..].trim())
+            } else {
+                // Line without timestamp, include as-is
+                let trimmed = line.trim();
+                if !trimmed.is_empty() {
+                    Some(trimmed)
+                } else {
+                    None
+                }
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let result = text.trim().to_string();
+    println!("Transcription: {}", result);
 
     Ok(result)
 }
 
-fn transcribe_blocking(audio_path: String, model_path: PathBuf) -> Result<String, String> {
+/// Transcribe using whisper-rs library (Linux/Windows)
+#[cfg(not(target_os = "macos"))]
+fn transcribe_with_whisper_rs(audio_path: String, model_path: PathBuf) -> Result<String, String> {
+    use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+
     // Load the audio file
-    let mut reader = hound::WavReader::open(audio_path).map_err(|e| e.to_string())?;
+    let mut reader = hound::WavReader::open(&audio_path).map_err(|e| e.to_string())?;
     let spec = reader.spec();
 
     if spec.sample_rate != 16000 {
@@ -277,10 +341,9 @@ fn transcribe_blocking(audio_path: String, model_path: PathBuf) -> Result<String
         samples
     };
 
-    // Initialize Whisper
     let model_path_str = model_path
         .to_str()
-        .ok_or_else(|| "Invalid model path (non-UTF8 characters)".to_string())?;
+        .ok_or_else(|| "Invalid model path".to_string())?;
 
     println!("Loading Whisper model from: {}", model_path_str);
 
@@ -294,7 +357,6 @@ fn transcribe_blocking(audio_path: String, model_path: PathBuf) -> Result<String
 
     let mut whisper_state = ctx.create_state().map_err(|e| format!("Failed to create state: {:?}", e))?;
 
-    // Configure transcription parameters
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
     params.set_language(Some("en"));
     params.set_print_special(false);
@@ -304,12 +366,10 @@ fn transcribe_blocking(audio_path: String, model_path: PathBuf) -> Result<String
     params.set_suppress_blank(true);
     params.set_suppress_nst(true);
 
-    // Run transcription
     whisper_state
         .full(params, &mono_samples)
         .map_err(|e| format!("Transcription failed: {:?}", e))?;
 
-    // Collect results
     let num_segments = whisper_state.full_n_segments();
     let mut text = String::new();
 
@@ -335,4 +395,29 @@ pub fn delete_model(model_id: String) -> Result<(), String> {
         fs::remove_file(&path).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+/// Check if whisper-cli is available (macOS only)
+#[tauri::command]
+pub fn check_whisper_cli() -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let whisper_paths = [
+            "/opt/homebrew/bin/whisper-cli",
+            "/usr/local/bin/whisper-cli",
+        ];
+
+        for path in whisper_paths {
+            if std::path::Path::new(path).exists() {
+                return Ok(path.to_string());
+            }
+        }
+
+        Err("whisper-cli not found. Install with: brew install whisper-cpp".to_string())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok("Using built-in whisper".to_string())
+    }
 }
