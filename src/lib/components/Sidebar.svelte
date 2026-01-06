@@ -62,10 +62,15 @@
 
   async function handleDeleteFolder(event: MouseEvent, path: string, name: string) {
     event.stopPropagation();
+    console.log("Delete folder clicked for:", path, name);
+
     if (confirm(`Delete folder "${name}" and all its notes?`)) {
       try {
+        console.log("Calling removeFolder...");
         await notesStore.removeFolder(path);
+        console.log("removeFolder completed");
       } catch (error) {
+        console.error("Delete folder error:", error);
         alert(`Failed to delete folder: ${error}`);
       }
     }

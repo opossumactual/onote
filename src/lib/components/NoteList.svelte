@@ -9,15 +9,27 @@
 
   async function handleDelete(event: MouseEvent, path: string) {
     event.stopPropagation();
-    if (confirm("Delete this note?")) {
+    console.log("Delete clicked for:", path);
+
+    // Use custom confirm since native confirm() may not work on macOS WebView
+    const confirmed = await new Promise<boolean>((resolve) => {
+      const result = window.confirm("Delete this note?");
+      console.log("Confirm result:", result);
+      resolve(result);
+    });
+
+    if (confirmed) {
       try {
+        console.log("Calling removeNote...");
         await notesStore.removeNote(path);
+        console.log("removeNote completed");
         // Clear editor if deleted note was selected
         if (editorStore.path === path) {
           // Reset editor state by loading nothing
           window.location.reload(); // Simple approach for now
         }
       } catch (error) {
+        console.error("Delete error:", error);
         alert(`Failed to delete note: ${error}`);
       }
     }
