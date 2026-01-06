@@ -44,6 +44,14 @@ pub fn run() {
                 // Create default inbox folder
                 std::fs::create_dir_all(notes_dir.join("inbox")).ok();
             }
+
+            // Open devtools in release builds for debugging
+            #[cfg(feature = "devtools")]
+            {
+                let window = app.get_webview_window("main").unwrap();
+                window.open_devtools();
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
