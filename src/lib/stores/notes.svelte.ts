@@ -67,6 +67,7 @@ async function removeNote(path: string) {
     }
   } catch (error) {
     console.error("Failed to delete note:", error);
+    throw error; // Re-throw to show error to user
   }
 }
 

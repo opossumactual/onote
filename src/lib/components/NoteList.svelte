@@ -10,11 +10,15 @@
   async function handleDelete(event: MouseEvent, path: string) {
     event.stopPropagation();
     if (confirm("Delete this note?")) {
-      await notesStore.removeNote(path);
-      // Clear editor if deleted note was selected
-      if (editorStore.path === path) {
-        // Reset editor state by loading nothing
-        window.location.reload(); // Simple approach for now
+      try {
+        await notesStore.removeNote(path);
+        // Clear editor if deleted note was selected
+        if (editorStore.path === path) {
+          // Reset editor state by loading nothing
+          window.location.reload(); // Simple approach for now
+        }
+      } catch (error) {
+        alert(`Failed to delete note: ${error}`);
       }
     }
   }
