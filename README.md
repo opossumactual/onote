@@ -27,6 +27,16 @@ Download the latest release for your platform:
 | Linux (Fedora/RHEL) | [onote_x86_64.rpm](https://github.com/opossumactual/onote/releases/latest) |
 | Linux (Universal) | [onote_amd64.AppImage](https://github.com/opossumactual/onote/releases/latest) |
 
+### macOS Installation
+
+Since the app isn't signed with an Apple Developer certificate, macOS will block it by default. After downloading and moving to Applications:
+
+```bash
+xattr -cr /Applications/onote.app
+```
+
+Then open the app normally. You only need to run this once per download.
+
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
@@ -62,7 +72,10 @@ On first use, you'll need to download a Whisper model in Settings:
 | small.en | 466 MB | Medium | Great |
 | medium.en | 1.5 GB | Slow | Best |
 
-Models are stored locally in `~/.local/share/onote/models/`
+Models are stored locally:
+- **macOS**: `~/Library/Application Support/opnotes/models/`
+- **Linux**: `~/.local/share/opnotes/models/`
+- **Windows**: `%APPDATA%\opnotes\models\`
 
 ## Tech Stack
 
